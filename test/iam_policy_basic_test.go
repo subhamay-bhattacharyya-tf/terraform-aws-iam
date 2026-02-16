@@ -23,7 +23,10 @@ func TestIAMPolicyBasic(t *testing.T) {
 
 	tfDir := "../examples/policy/basic"
 
-	// Create tfvars file to avoid complex variable escaping issues
+	// Policy document as raw JSON string (tfvars doesn't support functions)
+	policyJSON := `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetObject"],"Resource":["*"]}]}`
+
+	// Create tfvars file with pre-encoded JSON
 	tfvarsContent := fmt.Sprintf(`
 region = "us-east-1"
 
@@ -31,19 +34,10 @@ iam_policies = [
   {
     name        = "%s"
     description = "Test IAM policy created by Terratest"
-    policy      = jsonencode({
-      Version = "2012-10-17"
-      Statement = [
-        {
-          Effect   = "Allow"
-          Action   = ["s3:GetObject"]
-          Resource = ["*"]
-        }
-      ]
-    })
+    policy      = %q
   }
 ]
-`, policyName)
+`, policyName, policyJSON)
 
 	tfvarsFile := fmt.Sprintf("%s/test_%s.auto.tfvars", tfDir, unique)
 	err := os.WriteFile(tfvarsFile, []byte(tfvarsContent), 0644)

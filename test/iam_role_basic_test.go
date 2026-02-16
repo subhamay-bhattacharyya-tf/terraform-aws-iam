@@ -23,42 +23,28 @@ func TestIAMRoleBasic(t *testing.T) {
 
 	tfDir := "../examples/role/basic"
 
-	// Create tfvars file to avoid complex variable escaping issues
+	// Pre-encoded JSON strings (tfvars doesn't support functions)
+	assumeRolePolicyJSON := `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"},"Action":"sts:AssumeRole"}]}`
+	inlinePolicyJSON := `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetObject"],"Resource":["*"]}]}`
+
+	// Create tfvars file with pre-encoded JSON
 	tfvarsContent := fmt.Sprintf(`
 region = "us-east-1"
 
 iam_roles = [
   {
-    name        = "%s"
-    description = "Test IAM role created by Terratest"
-    assume_role_policy = jsonencode({
-      Version = "2012-10-17"
-      Statement = [
-        {
-          Effect    = "Allow"
-          Principal = { Service = "lambda.amazonaws.com" }
-          Action    = "sts:AssumeRole"
-        }
-      ]
-    })
+    name               = "%s"
+    description        = "Test IAM role created by Terratest"
+    assume_role_policy = %q
     inline_policies = [
       {
-        name = "test-inline-policy"
-        policy = jsonencode({
-          Version = "2012-10-17"
-          Statement = [
-            {
-              Effect   = "Allow"
-              Action   = ["s3:GetObject"]
-              Resource = ["*"]
-            }
-          ]
-        })
+        name   = "test-inline-policy"
+        policy = %q
       }
     ]
   }
 ]
-`, roleName)
+`, roleName, assumeRolePolicyJSON, inlinePolicyJSON)
 
 	tfvarsFile := fmt.Sprintf("%s/test_%s.auto.tfvars", tfDir, unique)
 	err := os.WriteFile(tfvarsFile, []byte(tfvarsContent), 0644)
