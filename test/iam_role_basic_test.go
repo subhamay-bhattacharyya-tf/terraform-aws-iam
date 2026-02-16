@@ -2,8 +2,8 @@
 package test
 
 import (
-	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -23,55 +23,51 @@ func TestIAMRoleBasic(t *testing.T) {
 
 	tfDir := "../examples/role/basic"
 
-	assumeRolePolicy := map[string]interface{}{
-		"Version": "2012-10-17",
-		"Statement": []map[string]interface{}{
-			{
-				"Effect":    "Allow",
-				"Principal": map[string]interface{}{"Service": "lambda.amazonaws.com"},
-				"Action":    "sts:AssumeRole",
-			},
-		},
-	}
+	// Create tfvars file to avoid complex variable escaping issues
+	tfvarsContent := fmt.Sprintf(`
+region = "us-east-1"
 
-	inlinePolicy := map[string]interface{}{
-		"Version": "2012-10-17",
-		"Statement": []map[string]interface{}{
-			{
-				"Effect":   "Allow",
-				"Action":   []string{"s3:GetObject"},
-				"Resource": []string{"*"},
-			},
-		},
-	}
+iam_roles = [
+  {
+    name        = "%s"
+    description = "Test IAM role created by Terratest"
+    assume_role_policy = jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Effect    = "Allow"
+          Principal = { Service = "lambda.amazonaws.com" }
+          Action    = "sts:AssumeRole"
+        }
+      ]
+    })
+    inline_policies = [
+      {
+        name = "test-inline-policy"
+        policy = jsonencode({
+          Version = "2012-10-17"
+          Statement = [
+            {
+              Effect   = "Allow"
+              Action   = ["s3:GetObject"]
+              Resource = ["*"]
+            }
+          ]
+        })
+      }
+    ]
+  }
+]
+`, roleName)
 
-	assumeRolePolicyJSON, err := json.Marshal(assumeRolePolicy)
-	require.NoError(t, err, "Failed to marshal assume role policy")
-
-	inlinePolicyJSON, err := json.Marshal(inlinePolicy)
-	require.NoError(t, err, "Failed to marshal inline policy")
-
-	iamRoles := []map[string]interface{}{
-		{
-			"name":               roleName,
-			"description":        "Test IAM role created by Terratest",
-			"assume_role_policy": string(assumeRolePolicyJSON),
-			"inline_policies": []map[string]interface{}{
-				{
-					"name":   "test-inline-policy",
-					"policy": string(inlinePolicyJSON),
-				},
-			},
-		},
-	}
+	tfvarsFile := fmt.Sprintf("%s/test_%s.auto.tfvars", tfDir, unique)
+	err := os.WriteFile(tfvarsFile, []byte(tfvarsContent), 0644)
+	require.NoError(t, err, "Failed to write tfvars file")
+	defer os.Remove(tfvarsFile)
 
 	tfOptions := &terraform.Options{
 		TerraformDir: tfDir,
 		NoColor:      true,
-		Vars: map[string]interface{}{
-			"region":    "us-east-1",
-			"iam_roles": iamRoles,
-		},
 	}
 
 	defer terraform.Destroy(t, tfOptions)

@@ -2,8 +2,8 @@
 package test
 
 import (
-	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -23,35 +23,36 @@ func TestIAMPolicyBasic(t *testing.T) {
 
 	tfDir := "../examples/policy/basic"
 
-	policyDocument := map[string]interface{}{
-		"Version": "2012-10-17",
-		"Statement": []map[string]interface{}{
-			{
-				"Effect":   "Allow",
-				"Action":   []string{"s3:GetObject"},
-				"Resource": []string{"*"},
-			},
-		},
-	}
+	// Create tfvars file to avoid complex variable escaping issues
+	tfvarsContent := fmt.Sprintf(`
+region = "us-east-1"
 
-	policyJSON, err := json.Marshal(policyDocument)
-	require.NoError(t, err, "Failed to marshal policy document")
+iam_policies = [
+  {
+    name        = "%s"
+    description = "Test IAM policy created by Terratest"
+    policy      = jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Effect   = "Allow"
+          Action   = ["s3:GetObject"]
+          Resource = ["*"]
+        }
+      ]
+    })
+  }
+]
+`, policyName)
 
-	iamPolicies := []map[string]interface{}{
-		{
-			"name":        policyName,
-			"description": "Test IAM policy created by Terratest",
-			"policy":      string(policyJSON),
-		},
-	}
+	tfvarsFile := fmt.Sprintf("%s/test_%s.auto.tfvars", tfDir, unique)
+	err := os.WriteFile(tfvarsFile, []byte(tfvarsContent), 0644)
+	require.NoError(t, err, "Failed to write tfvars file")
+	defer os.Remove(tfvarsFile)
 
 	tfOptions := &terraform.Options{
 		TerraformDir: tfDir,
 		NoColor:      true,
-		Vars: map[string]interface{}{
-			"region":       "us-east-1",
-			"iam_policies": iamPolicies,
-		},
 	}
 
 	defer terraform.Destroy(t, tfOptions)
