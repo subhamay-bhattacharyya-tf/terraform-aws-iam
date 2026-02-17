@@ -9,5 +9,5 @@
 module "iam_role" {
   source = "../../../modules/role"
 
-  iam_roles = var.iam_roles
+  iam_role = var.iam_role
 }

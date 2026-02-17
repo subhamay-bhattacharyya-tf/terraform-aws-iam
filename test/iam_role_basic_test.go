@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestIAMRoleBasic tests creating IAM roles with inline policies
+// TestIAMRoleBasic tests creating an IAM role with inline policies
 func TestIAMRoleBasic(t *testing.T) {
 	t.Parallel()
 
@@ -31,19 +31,17 @@ func TestIAMRoleBasic(t *testing.T) {
 	tfvarsContent := fmt.Sprintf(`
 region = "us-east-1"
 
-iam_roles = [
-  {
-    name               = "%s"
-    description        = "Test IAM role created by Terratest"
-    assume_role_policy = %q
-    inline_policies = [
-      {
-        name   = "test-inline-policy"
-        policy = %q
-      }
-    ]
-  }
-]
+iam_role = {
+  name               = "%s"
+  description        = "Test IAM role created by Terratest"
+  assume_role_policy = %q
+  inline_policies = [
+    {
+      name   = "test-inline-policy"
+      policy = %q
+    }
+  ]
+}
 `, roleName, assumeRolePolicyJSON, inlinePolicyJSON)
 
 	tfvarsFile := fmt.Sprintf("%s/test_%s.auto.tfvars", tfDir, unique)
@@ -63,9 +61,8 @@ iam_roles = [
 
 	client := getIAMClient(t)
 
-	outputRoleArns := terraform.OutputMap(t, tfOptions, "role_arns")
-	roleArn, exists := outputRoleArns[roleName]
-	require.True(t, exists, "Expected role %q in output", roleName)
+	roleArn := terraform.Output(t, tfOptions, "role_arn")
+	require.NotEmpty(t, roleArn, "Expected role_arn output to be non-empty")
 
 	roleExists := roleExists(t, client, roleName)
 	require.True(t, roleExists, "Expected role %q to exist", roleName)

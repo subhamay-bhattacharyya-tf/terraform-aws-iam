@@ -101,6 +101,79 @@ module "ec2_policy" {
 }
 ```
 
+### Basic IAM Role
+
+```hcl
+module "iam_role" {
+  source = "github.com/subhamay-bhattacharyya-tf/terraform-aws-iam//modules/role?ref=main"
+
+  iam_role = {
+    name = "my-lambda-role"
+    assume_role_policy = jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Effect = "Allow"
+          Principal = {
+            Service = "lambda.amazonaws.com"
+          }
+          Action = "sts:AssumeRole"
+        }
+      ]
+    })
+  }
+}
+```
+
+### IAM Role with Inline and Managed Policies
+
+```hcl
+module "iam_role" {
+  source = "github.com/subhamay-bhattacharyya-tf/terraform-aws-iam//modules/role?ref=main"
+
+  iam_role = {
+    name        = "my-ec2-role"
+    description = "Role for EC2 instances"
+    path        = "/service-roles/"
+    assume_role_policy = jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Effect = "Allow"
+          Principal = {
+            Service = "ec2.amazonaws.com"
+          }
+          Action = "sts:AssumeRole"
+        }
+      ]
+    })
+    max_session_duration = 7200
+    inline_policies = [
+      {
+        name = "s3-access"
+        policy = jsonencode({
+          Version = "2012-10-17"
+          Statement = [
+            {
+              Effect   = "Allow"
+              Action   = ["s3:GetObject", "s3:ListBucket"]
+              Resource = ["arn:aws:s3:::my-bucket", "arn:aws:s3:::my-bucket/*"]
+            }
+          ]
+        })
+      }
+    ]
+    managed_policy_arns = [
+      "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+    ]
+    tags = {
+      Environment = "production"
+      Team        = "platform"
+    }
+  }
+}
+```
+
 ## Examples
 
 ### Policy Examples
@@ -108,6 +181,12 @@ module "ec2_policy" {
 | Example | Description |
 |---------|-------------|
 | [basic](examples/policy/basic) | Simple IAM policy |
+
+### Role Examples
+
+| Example | Description |
+|---------|-------------|
+| [basic](examples/role/basic) | IAM role with inline and managed policies |
 
 ## Requirements
 
@@ -121,6 +200,13 @@ module "ec2_policy" {
 | Name | Version |
 |------|---------|
 | aws | >= 5.0.0 |
+
+## Modules
+
+| Module | Description |
+|--------|-------------|
+| [policy](modules/policy) | IAM policy with custom permissions |
+| [role](modules/role) | IAM role with inline and managed policies |
 
 ## Policy Module
 
@@ -158,6 +244,52 @@ module "ec2_policy" {
 |----------|-------------|
 | aws_iam_policy | The IAM policy |
 
+### Role Module
+
+| Resource | Description |
+|----------|-------------|
+| aws_iam_role | The IAM role |
+| aws_iam_role_policy | Inline policies attached to the role |
+| aws_iam_role_policy_attachment | Managed policy attachments |
+
+## Role Module
+
+### Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|----------|
+| iam_role | IAM role configuration | `object` | - | yes |
+
+### iam_role Object Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| name | string | - | Name of the IAM role (required) |
+| description | string | "Managed by Terraform" | Description of the role |
+| path | string | "/" | Path in which to create the role |
+| assume_role_policy | string | - | JSON trust policy document (required) |
+| max_session_duration | number | 3600 | Maximum session duration in seconds (3600-43200) |
+| permissions_boundary | string | null | ARN of the permissions boundary policy |
+| force_detach_policies | bool | false | Force detach policies before destroying |
+| inline_policies | list(object) | [] | List of inline policies to attach |
+| managed_policy_arns | list(string) | [] | List of managed policy ARNs to attach |
+| tags | map(string) | {} | Tags to apply to the role |
+
+### inline_policies Object Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| name | string | Name of the inline policy |
+| policy | string | JSON policy document |
+
+### Outputs
+
+| Name | Description |
+|------|-------------|
+| role | The created IAM role with its attributes |
+| role_arn | The ARN of the IAM role |
+| role_name | The name of the IAM role |
+
 ## Validation
 
 The module validates inputs and provides descriptive error messages for:
@@ -182,6 +314,7 @@ go test -v -timeout 30m
 | Test | Description |
 |------|-------------|
 | TestIAMPolicyBasic | Basic policy creation |
+| TestIAMRoleBasic | Basic role creation with policies |
 
 AWS credentials must be configured via environment variables or AWS CLI profile.
 

@@ -1,62 +1,39 @@
 # -- modules/role/main.tf (Child Module)
 # ============================================================================
 # AWS IAM Role Resource
-# Creates and manages IAM roles with inline and managed policies
+# Creates and manages IAM role with inline and managed policies
 # ============================================================================
 
 resource "aws_iam_role" "this" {
-  for_each = { for r in var.iam_roles : r.name => r }
-
-  name                  = each.value.name
-  description           = each.value.description
-  path                  = each.value.path
-  assume_role_policy    = each.value.assume_role_policy
-  max_session_duration  = each.value.max_session_duration
-  permissions_boundary  = each.value.permissions_boundary
-  force_detach_policies = each.value.force_detach_policies
+  name                  = var.iam_role.name
+  description           = var.iam_role.description
+  path                  = var.iam_role.path
+  assume_role_policy    = var.iam_role.assume_role_policy
+  max_session_duration  = var.iam_role.max_session_duration
+  permissions_boundary  = var.iam_role.permissions_boundary
+  force_detach_policies = var.iam_role.force_detach_policies
 
   tags = merge(
     {
-      Name = each.value.name
+      Name = var.iam_role.name
     },
-    each.value.tags
+    var.iam_role.tags
   )
 }
 
 # Inline policies
 resource "aws_iam_role_policy" "inline" {
-  for_each = {
-    for item in flatten([
-      for r in var.iam_roles : [
-        for p in r.inline_policies : {
-          role_name   = r.name
-          policy_name = p.name
-          policy      = p.policy
-          key         = "${r.name}:${p.name}"
-        }
-      ]
-    ]) : item.key => item
-  }
+  for_each = { for p in var.iam_role.inline_policies : p.name => p }
 
-  name   = each.value.policy_name
-  role   = aws_iam_role.this[each.value.role_name].id
+  name   = each.value.name
+  role   = aws_iam_role.this.id
   policy = each.value.policy
 }
 
 # Managed policy attachments
 resource "aws_iam_role_policy_attachment" "managed" {
-  for_each = {
-    for item in flatten([
-      for r in var.iam_roles : [
-        for arn in r.managed_policy_arns : {
-          role_name  = r.name
-          policy_arn = arn
-          key        = "${r.name}:${arn}"
-        }
-      ]
-    ]) : item.key => item
-  }
+  for_each = toset(var.iam_role.managed_policy_arns)
 
-  role       = aws_iam_role.this[each.value.role_name].id
-  policy_arn = each.value.policy_arn
+  role       = aws_iam_role.this.id
+  policy_arn = each.value
 }

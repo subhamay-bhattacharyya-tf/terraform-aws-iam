@@ -9,9 +9,9 @@ variable "region" {
   default     = "us-east-1"
 }
 
-variable "iam_roles" {
-  description = "List of IAM role configurations"
-  type = list(object({
+variable "iam_role" {
+  description = "IAM role configuration"
+  type = object({
     name                  = string
     description           = optional(string, "Managed by Terraform")
     path                  = optional(string, "/")
@@ -25,5 +25,5 @@ variable "iam_roles" {
       policy = string
     })), [])
     managed_policy_arns = optional(list(string), [])
-  }))
+  })
 }

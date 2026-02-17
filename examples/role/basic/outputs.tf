@@ -3,17 +3,17 @@
 # Example: Basic IAM Role - Outputs
 # ============================================================================
 
-output "roles" {
-  description = "Map of created IAM roles with their attributes"
-  value       = module.iam_role.roles
+output "role" {
+  description = "The created IAM role with its attributes"
+  value       = module.iam_role.role
 }
 
-output "role_arns" {
-  description = "Map of role names to their ARNs"
-  value       = module.iam_role.role_arns
+output "role_arn" {
+  description = "The ARN of the IAM role"
+  value       = module.iam_role.role_arn
 }
 
-output "role_names" {
-  description = "List of created role names"
-  value       = module.iam_role.role_names
+output "role_name" {
+  description = "The name of the IAM role"
+  value       = module.iam_role.role_name
 }
