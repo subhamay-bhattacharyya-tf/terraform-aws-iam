@@ -8,19 +8,18 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/stretchr/testify/require"
 )
 
-type S3BucketProps struct {
-	Name              string
-	VersioningEnabled bool
-	SSEAlgorithm      string
-	KMSKeyID          string
+type IAMPolicyProps struct {
+	Name        string
+	Arn         string
+	Path        string
+	Description string
 }
 
-func getS3Client(t *testing.T) *s3.Client {
+func getIAMClient(t *testing.T) *iam.Client {
 	t.Helper()
 
 	region := os.Getenv("AWS_REGION")
@@ -31,63 +30,45 @@ func getS3Client(t *testing.T) *s3.Client {
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
 	require.NoError(t, err, "Failed to load AWS config")
 
-	return s3.NewFromConfig(cfg)
+	return iam.NewFromConfig(cfg)
 }
 
-func bucketExists(t *testing.T, client *s3.Client, bucketName string) bool {
+func policyExists(t *testing.T, client *iam.Client, policyArn string) bool {
 	t.Helper()
 
-	_, err := client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
-		Bucket: &bucketName,
+	_, err := client.GetPolicy(context.TODO(), &iam.GetPolicyInput{
+		PolicyArn: &policyArn,
 	})
 
 	return err == nil
 }
 
-func fetchBucketProps(t *testing.T, client *s3.Client, bucketName string) S3BucketProps {
+func fetchPolicyProps(t *testing.T, client *iam.Client, policyArn string) IAMPolicyProps {
 	t.Helper()
 
-	props := S3BucketProps{Name: bucketName}
+	props := IAMPolicyProps{}
 
-	// Check versioning
-	versioningOutput, err := client.GetBucketVersioning(context.TODO(), &s3.GetBucketVersioningInput{
-		Bucket: &bucketName,
+	output, err := client.GetPolicy(context.TODO(), &iam.GetPolicyInput{
+		PolicyArn: &policyArn,
 	})
-	require.NoError(t, err, "Failed to get bucket versioning")
-	props.VersioningEnabled = versioningOutput.Status == types.BucketVersioningStatusEnabled
+	require.NoError(t, err, "Failed to get policy")
 
-	// Check encryption
-	encryptionOutput, err := client.GetBucketEncryption(context.TODO(), &s3.GetBucketEncryptionInput{
-		Bucket: &bucketName,
-	})
-	if err == nil && len(encryptionOutput.ServerSideEncryptionConfiguration.Rules) > 0 {
-		rule := encryptionOutput.ServerSideEncryptionConfiguration.Rules[0]
-		if rule.ApplyServerSideEncryptionByDefault != nil {
-			props.SSEAlgorithm = string(rule.ApplyServerSideEncryptionByDefault.SSEAlgorithm)
-			if rule.ApplyServerSideEncryptionByDefault.KMSMasterKeyID != nil {
-				props.KMSKeyID = *rule.ApplyServerSideEncryptionByDefault.KMSMasterKeyID
-			}
+	if output.Policy != nil {
+		if output.Policy.PolicyName != nil {
+			props.Name = *output.Policy.PolicyName
+		}
+		if output.Policy.Arn != nil {
+			props.Arn = *output.Policy.Arn
+		}
+		if output.Policy.Path != nil {
+			props.Path = *output.Policy.Path
+		}
+		if output.Policy.Description != nil {
+			props.Description = *output.Policy.Description
 		}
 	}
 
 	return props
-}
-
-func listBucketObjects(t *testing.T, client *s3.Client, bucketName string) []string {
-	t.Helper()
-
-	output, err := client.ListObjectsV2(context.TODO(), &s3.ListObjectsV2Input{
-		Bucket: &bucketName,
-	})
-	require.NoError(t, err, "Failed to list bucket objects")
-
-	var keys []string
-	for _, obj := range output.Contents {
-		if obj.Key != nil {
-			keys = append(keys, *obj.Key)
-		}
-	}
-	return keys
 }
 
 func mustEnv(t *testing.T, key string) string {
@@ -95,6 +76,16 @@ func mustEnv(t *testing.T, key string) string {
 	v := strings.TrimSpace(os.Getenv(key))
 	require.NotEmpty(t, v, "Missing required environment variable %s", key)
 	return v
+}
+
+func roleExists(t *testing.T, client *iam.Client, roleName string) bool {
+	t.Helper()
+
+	_, err := client.GetRole(context.TODO(), &iam.GetRoleInput{
+		RoleName: &roleName,
+	})
+
+	return err == nil
 }
 
 func stringPtr(s string) *string {
